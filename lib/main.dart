@@ -26,21 +26,37 @@ class WeeklySchedulePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final events = <ScheduleEvent>[
-      ScheduleEvent(dayIndex: 0, startMinutes: toMinutes(8, 0), endMinutes: toMinutes(9, 30), title: '病院'),
+      ScheduleEvent(dayIndex: 0, startMinutes: toMinutes(8, 0), endMinutes: toMinutes(10, 0), title: '病院'),
       ScheduleEvent(
-        dayIndex: 2,
-        startMinutes: toMinutes(6, 0),
-        endMinutes: toMinutes(7, 0),
-        title: 'ジョグ',
+        dayIndex: 0,
+        startMinutes: toMinutes(9, 0),
+        endMinutes: toMinutes(11, 0),
+        title: '買い物',
         color: const Color(0xFF26A69A),
       ),
-      ScheduleEvent(dayIndex: 2, startMinutes: toMinutes(10, 0), endMinutes: toMinutes(12, 0), title: '病院'),
+
+      ScheduleEvent(dayIndex: 2, startMinutes: toMinutes(10, 0), endMinutes: toMinutes(12, 0), title: '通院'),
+      ScheduleEvent(
+        dayIndex: 2,
+        startMinutes: toMinutes(10, 30),
+        endMinutes: toMinutes(12, 30),
+        title: 'オンライン',
+        color: const Color(0xFF8E24AA),
+      ),
+      ScheduleEvent(
+        dayIndex: 2,
+        startMinutes: toMinutes(11, 0),
+        endMinutes: toMinutes(12, 0),
+        title: 'ミーティング',
+        color: const Color(0xFFFFA726),
+      ),
+
       ScheduleEvent(
         dayIndex: 4,
         startMinutes: toMinutes(13, 15),
         endMinutes: toMinutes(16, 45),
         title: '検診',
-        color: const Color(0xFFFFA726),
+        color: const Color(0xFF1E88E5),
       ),
     ];
 
@@ -87,7 +103,7 @@ class WeeklyScheduleView extends StatelessWidget {
           height: 36,
           child: Row(
             children: [
-              const SizedBox(width: timeGutterWidth), // 時間欄ぶんの余白
+              const SizedBox(width: timeGutterWidth),
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
@@ -134,6 +150,8 @@ class WeeklyScheduleView extends StatelessWidget {
                       builder: (context, constraints) {
                         final colW = constraints.maxWidth / 7;
 
+                        final placed = _placeWeekly(events, colW);
+
                         return Stack(
                           children: [
                             CustomPaint(
@@ -146,17 +164,25 @@ class WeeklyScheduleView extends StatelessWidget {
                               ),
                             ),
 
-                            ...events.map((e) {
+                            ...placed.map((p) {
+                              final e = p.event;
+
                               final top = (e.startMinutes - startHour * 60) * pxPerMinute;
 
                               final height = (e.endMinutes - e.startMinutes) * pxPerMinute;
 
-                              final left = e.dayIndex * colW;
+                              final perWidth = colW / p.columnCount;
+
+                              final left = e.dayIndex * colW + p.columnIndex * perWidth;
+
+                              const gap = 2.0;
+
+                              final width = perWidth - gap * 2;
 
                               return Positioned(
                                 top: top.clamp(0, gridHeight - 1),
-                                left: left,
-                                width: colW,
+                                left: left + gap,
+                                width: width,
                                 height: height,
                                 child: _EventCard(event: e),
                               );
@@ -178,6 +204,113 @@ class WeeklyScheduleView extends StatelessWidget {
   }
 }
 
+///
+List<_PlacedEvent> _placeWeekly(List<ScheduleEvent> events, double columnWidth) {
+  final byDay = <int, List<ScheduleEvent>>{};
+
+  for (final e in events) {
+    byDay.putIfAbsent(e.dayIndex, () => []).add(e);
+  }
+
+  final placedAll = <_PlacedEvent>[];
+
+  for (final entry in byDay.entries) {
+    final dayEvents = [...entry.value]..sort((a, b) => a.startMinutes.compareTo(b.startMinutes));
+
+    placedAll.addAll(_placeForOneDay(dayEvents));
+  }
+
+  return placedAll;
+}
+
+///
+List<_PlacedEvent> _placeForOneDay(List<ScheduleEvent> events) {
+  final result = <_PlacedEvent>[];
+
+  var i = 0;
+
+  while (i < events.length) {
+    final cluster = <ScheduleEvent>[];
+
+    final active = <ScheduleEvent>[];
+
+    int j = i;
+
+    while (j < events.length) {
+      final e = events[j];
+
+      active.removeWhere((a) => a.endMinutes <= e.startMinutes);
+
+      if (active.isEmpty && cluster.isNotEmpty) {
+        break;
+      }
+      active.add(e);
+      cluster.add(e);
+      j++;
+    }
+
+    result.addAll(_assignColumns(cluster));
+
+    i = j;
+  }
+  return result;
+}
+
+///
+List<_PlacedEvent> _assignColumns(List<ScheduleEvent> cluster) {
+  final sorted = [...cluster]
+    ..sort((a, b) {
+      final c = a.startMinutes.compareTo(b.startMinutes);
+      if (c != 0) return c;
+      return a.endMinutes.compareTo(b.endMinutes);
+    });
+
+  final placed = <_PlacedEvent>[];
+
+  final active = <int, ScheduleEvent>{}; // columnIndex -> event
+
+  for (final e in sorted) {
+    final toRemove = <int>[];
+
+    active.forEach((col, ev) {
+      if (ev.endMinutes <= e.startMinutes) {
+        toRemove.add(col);
+      }
+    });
+
+    for (final col in toRemove) {
+      active.remove(col);
+    }
+
+    int colIndex = 0;
+
+    while (active.containsKey(colIndex)) {
+      colIndex++;
+    }
+
+    active[colIndex] = e;
+
+    placed.add(_PlacedEvent(event: e, columnIndex: colIndex, columnCount: 0));
+  }
+
+  final clusterColumnCount = placed.fold<int>(
+    0,
+    (maxCol, p) => p.columnIndex + 1 > maxCol ? p.columnIndex + 1 : maxCol,
+  );
+
+  return placed
+      .map((p) => _PlacedEvent(event: p.event, columnIndex: p.columnIndex, columnCount: clusterColumnCount))
+      .toList();
+}
+
+class _PlacedEvent {
+  const _PlacedEvent({required this.event, required this.columnIndex, required this.columnCount});
+
+  final ScheduleEvent event;
+  final int columnIndex;
+  final int columnCount;
+}
+
 class _TimeLabels extends StatelessWidget {
   const _TimeLabels({required this.startHour, required this.endHour, required this.pxPerMinute});
 
@@ -195,7 +328,16 @@ class _TimeLabels extends StatelessWidget {
     for (int h = startHour; h <= endHour; h++) {
       final top = (h - startHour) * 60 * pxPerMinute;
 
-      children.add(Positioned(top: top - 8, left: 4, child: Text('${h.toString().padLeft(2, '0')}:00')));
+      children.add(
+        Positioned(
+          top: top - 8,
+          left: 4,
+          child: Text(
+            '${h.toString().padLeft(2, '0')}:00',
+            style: const TextStyle(fontSize: 11, color: Colors.black87),
+          ),
+        ),
+      );
     }
 
     return Stack(children: children);
