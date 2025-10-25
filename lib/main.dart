@@ -9,6 +9,7 @@ class ScheduleEvent {
     required this.endMinutes,
     required this.title,
     this.color = const Color(0xFF42A5F5),
+    this.memo,
   });
 
   final int dayIndex;
@@ -16,9 +17,21 @@ class ScheduleEvent {
   final int endMinutes;
   final String title;
   final Color color;
+  final String? memo;
 }
 
 int toMinutes(int h, int m) => h * 60 + m;
+
+///
+String _fmtHM(int minutes) {
+  final h = (minutes ~/ 60).toString().padLeft(2, '0');
+
+  final m = (minutes % 60).toString().padLeft(2, '0');
+
+  return '$h:$m';
+}
+
+const _dayLabels = ['日', '月', '火', '水', '木', '金', '土'];
 
 class WeeklySchedulePage extends StatelessWidget {
   const WeeklySchedulePage({super.key});
@@ -26,13 +39,20 @@ class WeeklySchedulePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final events = <ScheduleEvent>[
-      ScheduleEvent(dayIndex: 0, startMinutes: toMinutes(8, 0), endMinutes: toMinutes(10, 0), title: '病院'),
+      ScheduleEvent(
+        dayIndex: 0,
+        startMinutes: toMinutes(8, 0),
+        endMinutes: toMinutes(10, 0),
+        title: '病院',
+        memo: '小児科・予約番号A-12',
+      ),
       ScheduleEvent(
         dayIndex: 0,
         startMinutes: toMinutes(9, 0),
         endMinutes: toMinutes(11, 0),
         title: '買い物',
         color: const Color(0xFF26A69A),
+        memo: 'オムツ/Mサイズ・ミルク等',
       ),
 
       ScheduleEvent(dayIndex: 2, startMinutes: toMinutes(10, 0), endMinutes: toMinutes(12, 0), title: '通院'),
@@ -57,6 +77,7 @@ class WeeklySchedulePage extends StatelessWidget {
         endMinutes: toMinutes(16, 45),
         title: '検診',
         color: const Color(0xFF1E88E5),
+        memo: '母子手帳・保険証・診察券',
       ),
     ];
 
@@ -85,8 +106,6 @@ class WeeklyScheduleView extends StatelessWidget {
 
   final List<ScheduleEvent> events;
 
-  static const _dayLabels = ['日', '月', '火', '水', '木', '金', '土'];
-
   ///
   @override
   Widget build(BuildContext context) {
@@ -104,32 +123,8 @@ class WeeklyScheduleView extends StatelessWidget {
           child: Row(
             children: [
               const SizedBox(width: timeGutterWidth),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final colW = constraints.maxWidth / 7;
-                    return Row(
-                      children: List.generate(7, (i) {
-                        final isWeekend = (i == 0 || i == 6);
-                        return Container(
-                          alignment: Alignment.center,
-                          width: colW,
-                          decoration: const BoxDecoration(
-                            border: Border(bottom: BorderSide(color: Color(0x33000000))),
-                          ),
-                          child: Text(
-                            _dayLabels[i],
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: isWeekend ? Colors.blueGrey : Colors.black87,
-                            ),
-                          ),
-                        );
-                      }),
-                    );
-                  },
-                ),
-              ),
+
+              const Expanded(child: _WeekHeader()),
             ],
           ),
         ),
@@ -184,7 +179,8 @@ class WeeklyScheduleView extends StatelessWidget {
                                 left: left + gap,
                                 width: width,
                                 height: height,
-                                child: _EventCard(event: e),
+
+                                child: _EventCard(event: e, onTap: () => _showEventDialog(context, e)),
                               );
                             }),
 
@@ -200,6 +196,84 @@ class WeeklyScheduleView extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+///
+void _showEventDialog(BuildContext context, ScheduleEvent e) {
+  showDialog(
+    context: context,
+    builder: (ctx) {
+      return AlertDialog(
+        title: Text(e.title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _DialogRow(icon: Icons.today, text: '曜日: ${_dayLabels[e.dayIndex]}'),
+            const SizedBox(height: 8),
+            _DialogRow(icon: Icons.access_time, text: '${_fmtHM(e.startMinutes)} 〜 ${_fmtHM(e.endMinutes)}'),
+            if (e.memo != null) ...[const SizedBox(height: 12), _DialogRow(icon: Icons.notes, text: e.memo!)],
+          ],
+        ),
+
+        actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('閉じる'))],
+      );
+    },
+  );
+}
+
+///
+class _DialogRow extends StatelessWidget {
+  const _DialogRow({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text)),
+      ],
+    );
+  }
+}
+
+///
+class _WeekHeader extends StatelessWidget {
+  const _WeekHeader();
+
+  ///
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final colW = constraints.maxWidth / 7;
+
+        return Row(
+          children: List.generate(7, (i) {
+            final isWeekend = (i == 0 || i == 6);
+
+            return Container(
+              alignment: Alignment.center,
+              width: colW,
+
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: Color(0x33000000))),
+              ),
+
+              child: Text(
+                _dayLabels[i],
+                style: TextStyle(fontWeight: FontWeight.w600, color: isWeekend ? Colors.blueGrey : Colors.black87),
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }
@@ -267,7 +341,7 @@ List<_PlacedEvent> _assignColumns(List<ScheduleEvent> cluster) {
 
   final placed = <_PlacedEvent>[];
 
-  final active = <int, ScheduleEvent>{}; // columnIndex -> event
+  final active = <int, ScheduleEvent>{};
 
   for (final e in sorted) {
     final toRemove = <int>[];
@@ -394,29 +468,34 @@ class _GridPainter extends CustomPainter {
 }
 
 class _EventCard extends StatelessWidget {
-  const _EventCard({required this.event});
+  const _EventCard({required this.event, this.onTap});
 
   final ScheduleEvent event;
+
+  final VoidCallback? onTap;
 
   ///
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(3),
-      child: Container(
-        decoration: BoxDecoration(
-          color: event.color.withValues(alpha: 0.95),
+
+      child: Material(
+        color: event.color.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(6),
+        elevation: 1,
+        child: InkWell(
           borderRadius: BorderRadius.circular(6),
-          boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 2, offset: Offset(0, 1))],
-        ),
-
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-
-        child: Text(
-          event.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            child: Text(
+              event.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+            ),
+          ),
         ),
       ),
     );
