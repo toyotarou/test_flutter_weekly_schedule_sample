@@ -161,6 +161,8 @@ class WeeklyScheduleView extends StatelessWidget {
                                 child: _EventCard(event: e),
                               );
                             }),
+
+                            _NowIndicatorLine(startHour: startHour, endHour: endHour, pxPerMinute: pxPerMinute),
                           ],
                         );
                       },
@@ -275,6 +277,41 @@ class _EventCard extends StatelessWidget {
           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
         ),
       ),
+    );
+  }
+}
+
+class _NowIndicatorLine extends StatelessWidget {
+  const _NowIndicatorLine({required this.startHour, required this.endHour, required this.pxPerMinute});
+
+  final int startHour;
+
+  final int endHour;
+
+  final double pxPerMinute;
+
+  ///
+  @override
+  Widget build(BuildContext context) {
+    final now = TimeOfDay.now();
+
+    final nowMinutes = now.hour * 60 + now.minute;
+
+    final startMin = startHour * 60;
+
+    final endMin = endHour * 60;
+
+    if (nowMinutes < startMin || nowMinutes > endMin) {
+      return const SizedBox.shrink();
+    }
+
+    final top = (nowMinutes - startMin) * pxPerMinute;
+
+    return Positioned(
+      top: top,
+      left: 0,
+      right: 0,
+      child: IgnorePointer(child: Container(height: 2, color: const Color(0xFFE53935))),
     );
   }
 }
