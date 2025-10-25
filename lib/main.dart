@@ -44,7 +44,7 @@ class WeeklySchedulePage extends StatelessWidget {
         startMinutes: toMinutes(8, 0),
         endMinutes: toMinutes(10, 0),
         title: '病院',
-        memo: '小児科・予約番号A-12',
+        memo: '小児科・予約A12',
       ),
       ScheduleEvent(
         dayIndex: 0,
@@ -52,7 +52,7 @@ class WeeklySchedulePage extends StatelessWidget {
         endMinutes: toMinutes(11, 0),
         title: '買い物',
         color: const Color(0xFF26A69A),
-        memo: 'オムツ/Mサイズ・ミルク等',
+        memo: 'オムツ等',
       ),
 
       ScheduleEvent(dayIndex: 2, startMinutes: toMinutes(10, 0), endMinutes: toMinutes(12, 0), title: '通院'),
@@ -67,7 +67,7 @@ class WeeklySchedulePage extends StatelessWidget {
         dayIndex: 2,
         startMinutes: toMinutes(11, 0),
         endMinutes: toMinutes(12, 0),
-        title: 'ミーティング',
+        title: 'MTG',
         color: const Color(0xFFFFA726),
       ),
 
@@ -77,16 +77,50 @@ class WeeklySchedulePage extends StatelessWidget {
         endMinutes: toMinutes(16, 45),
         title: '検診',
         color: const Color(0xFF1E88E5),
-        memo: '母子手帳・保険証・診察券',
+        memo: '保険証等',
       ),
     ];
 
     return Scaffold(
-      appBar: AppBar(title: Text('週スケジュール')),
+      appBar: AppBar(title: const Text('Step9 ダイアログ表示')),
 
-      body: WeeklyScheduleView(startHour: 3, endHour: 24, pxPerMinute: 1, events: events),
+      body: Center(
+        child: ElevatedButton.icon(
+          icon: const Icon(Icons.calendar_view_week),
+          label: const Text('週スケジュールを開く'),
+
+          onPressed: () => _openWeeklyDialog(context, events),
+        ),
+      ),
     );
   }
+}
+
+void _openWeeklyDialog(BuildContext context, List<ScheduleEvent> events) {
+  const double timeGutterWidth = 56;
+  const double minColumnWidth = 90;
+  final double width = timeGutterWidth + minColumnWidth * 7;
+
+  showDialog(
+    context: context,
+    builder: (ctx) {
+      return AlertDialog(
+        title: const Text('週スケジュール'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 560,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: width,
+              child: WeeklyScheduleView(startHour: 3, endHour: 24, pxPerMinute: 1, events: events),
+            ),
+          ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('閉じる'))],
+      );
+    },
+  );
 }
 
 class WeeklyScheduleView extends StatelessWidget {
@@ -200,7 +234,38 @@ class WeeklyScheduleView extends StatelessWidget {
   }
 }
 
-///
+class _WeekHeader extends StatelessWidget {
+  const _WeekHeader();
+
+  ///
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final colW = constraints.maxWidth / 7;
+        return Row(
+          children: List.generate(7, (i) {
+            final isWeekend = (i == 0 || i == 6);
+            return Container(
+              alignment: Alignment.center,
+              width: colW,
+
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: Color(0x33000000))),
+              ),
+
+              child: Text(
+                _dayLabels[i],
+                style: TextStyle(fontWeight: FontWeight.w600, color: isWeekend ? Colors.blueGrey : Colors.black87),
+              ),
+            );
+          }),
+        );
+      },
+    );
+  }
+}
+
 void _showEventDialog(BuildContext context, ScheduleEvent e) {
   showDialog(
     context: context,
@@ -218,7 +283,7 @@ void _showEventDialog(BuildContext context, ScheduleEvent e) {
           ],
         ),
 
-        actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('閉じる'))],
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('閉じる'))],
       );
     },
   );
@@ -243,42 +308,6 @@ class _DialogRow extends StatelessWidget {
   }
 }
 
-///
-class _WeekHeader extends StatelessWidget {
-  const _WeekHeader();
-
-  ///
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final colW = constraints.maxWidth / 7;
-
-        return Row(
-          children: List.generate(7, (i) {
-            final isWeekend = (i == 0 || i == 6);
-
-            return Container(
-              alignment: Alignment.center,
-              width: colW,
-
-              decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: Color(0x33000000))),
-              ),
-
-              child: Text(
-                _dayLabels[i],
-                style: TextStyle(fontWeight: FontWeight.w600, color: isWeekend ? Colors.blueGrey : Colors.black87),
-              ),
-            );
-          }),
-        );
-      },
-    );
-  }
-}
-
-///
 List<_PlacedEvent> _placeWeekly(List<ScheduleEvent> events, double columnWidth) {
   final byDay = <int, List<ScheduleEvent>>{};
 
@@ -289,9 +318,9 @@ List<_PlacedEvent> _placeWeekly(List<ScheduleEvent> events, double columnWidth) 
   final placedAll = <_PlacedEvent>[];
 
   for (final entry in byDay.entries) {
-    final dayEvents = [...entry.value]..sort((a, b) => a.startMinutes.compareTo(b.startMinutes));
+    final list = [...entry.value]..sort((a, b) => a.startMinutes.compareTo(b.startMinutes));
 
-    placedAll.addAll(_placeForOneDay(dayEvents));
+    placedAll.addAll(_placeForOneDay(list));
   }
 
   return placedAll;
@@ -315,9 +344,8 @@ List<_PlacedEvent> _placeForOneDay(List<ScheduleEvent> events) {
 
       active.removeWhere((a) => a.endMinutes <= e.startMinutes);
 
-      if (active.isEmpty && cluster.isNotEmpty) {
-        break;
-      }
+      if (active.isEmpty && cluster.isNotEmpty) break;
+
       active.add(e);
       cluster.add(e);
       j++;
@@ -347,9 +375,7 @@ List<_PlacedEvent> _assignColumns(List<ScheduleEvent> cluster) {
     final toRemove = <int>[];
 
     active.forEach((col, ev) {
-      if (ev.endMinutes <= e.startMinutes) {
-        toRemove.add(col);
-      }
+      if (ev.endMinutes <= e.startMinutes) toRemove.add(col);
     });
 
     for (final col in toRemove) {
@@ -357,7 +383,6 @@ List<_PlacedEvent> _assignColumns(List<ScheduleEvent> cluster) {
     }
 
     int colIndex = 0;
-
     while (active.containsKey(colIndex)) {
       colIndex++;
     }
@@ -367,14 +392,9 @@ List<_PlacedEvent> _assignColumns(List<ScheduleEvent> cluster) {
     placed.add(_PlacedEvent(event: e, columnIndex: colIndex, columnCount: 0));
   }
 
-  final clusterColumnCount = placed.fold<int>(
-    0,
-    (maxCol, p) => p.columnIndex + 1 > maxCol ? p.columnIndex + 1 : maxCol,
-  );
+  final columnCount = placed.fold<int>(0, (m, p) => (p.columnIndex + 1 > m) ? p.columnIndex + 1 : m);
 
-  return placed
-      .map((p) => _PlacedEvent(event: p.event, columnIndex: p.columnIndex, columnCount: clusterColumnCount))
-      .toList();
+  return placed.map((p) => _PlacedEvent(event: p.event, columnIndex: p.columnIndex, columnCount: columnCount)).toList();
 }
 
 class _PlacedEvent {
@@ -460,11 +480,7 @@ class _GridPainter extends CustomPainter {
 
   ///
   @override
-  bool shouldRepaint(covariant _GridPainter old) =>
-      old.startHour != startHour ||
-      old.endHour != endHour ||
-      old.pxPerMinute != pxPerMinute ||
-      old.columnWidth != columnWidth;
+  bool shouldRepaint(old) => true;
 }
 
 class _EventCard extends StatelessWidget {
@@ -518,15 +534,11 @@ class _NowIndicatorLine extends StatelessWidget {
 
     final nowMinutes = now.hour * 60 + now.minute;
 
-    final startMin = startHour * 60;
-
-    final endMin = endHour * 60;
-
-    if (nowMinutes < startMin || nowMinutes > endMin) {
+    if (nowMinutes < startHour * 60 || nowMinutes > endHour * 60) {
       return const SizedBox.shrink();
     }
 
-    final top = (nowMinutes - startMin) * pxPerMinute;
+    final top = (nowMinutes - startHour * 60) * pxPerMinute;
 
     return Positioned(
       top: top,
