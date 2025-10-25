@@ -2,27 +2,72 @@ import 'package:flutter/material.dart';
 
 void main() => runApp(const MaterialApp(home: WeeklySchedulePage()));
 
+class ScheduleEvent {
+  ScheduleEvent({
+    required this.dayIndex,
+    required this.startMinutes,
+    required this.endMinutes,
+    required this.title,
+    this.color = const Color(0xFF42A5F5),
+  });
+
+  final int dayIndex;
+  final int startMinutes;
+  final int endMinutes;
+  final String title;
+  final Color color;
+}
+
+int toMinutes(int h, int m) => h * 60 + m;
+
 class WeeklySchedulePage extends StatelessWidget {
   const WeeklySchedulePage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final events = <ScheduleEvent>[
+      ScheduleEvent(dayIndex: 0, startMinutes: toMinutes(8, 0), endMinutes: toMinutes(9, 30), title: '病院'),
+      ScheduleEvent(
+        dayIndex: 2,
+        startMinutes: toMinutes(6, 0),
+        endMinutes: toMinutes(7, 0),
+        title: 'ジョグ',
+        color: const Color(0xFF26A69A),
+      ),
+      ScheduleEvent(dayIndex: 2, startMinutes: toMinutes(10, 0), endMinutes: toMinutes(12, 0), title: '病院'),
+      ScheduleEvent(
+        dayIndex: 4,
+        startMinutes: toMinutes(13, 15),
+        endMinutes: toMinutes(16, 45),
+        title: '検診',
+        color: const Color(0xFFFFA726),
+      ),
+    ];
+
     return Scaffold(
       appBar: AppBar(title: Text('週スケジュール')),
 
-      body: WeeklyScheduleView(startHour: 3, endHour: 24, pxPerMinute: 1),
+      body: WeeklyScheduleView(startHour: 3, endHour: 24, pxPerMinute: 1, events: events),
     );
   }
 }
 
 class WeeklyScheduleView extends StatelessWidget {
-  const WeeklyScheduleView({super.key, required this.startHour, required this.endHour, required this.pxPerMinute});
+  const WeeklyScheduleView({
+    super.key,
+    required this.startHour,
+    required this.endHour,
+    required this.pxPerMinute,
+    this.events = const [],
+  });
 
   final int startHour;
 
   final int endHour;
 
   final double pxPerMinute;
+
+  final List<ScheduleEvent> events;
 
   static const _dayLabels = ['日', '月', '火', '水', '木', '金', '土'];
 
@@ -89,15 +134,34 @@ class WeeklyScheduleView extends StatelessWidget {
                       builder: (context, constraints) {
                         final colW = constraints.maxWidth / 7;
 
-                        return CustomPaint(
-                          size: Size(constraints.maxWidth, gridHeight),
+                        return Stack(
+                          children: [
+                            CustomPaint(
+                              size: Size(constraints.maxWidth, gridHeight),
+                              painter: _GridPainter(
+                                startHour: startHour,
+                                endHour: endHour,
+                                pxPerMinute: pxPerMinute,
+                                columnWidth: colW,
+                              ),
+                            ),
 
-                          painter: _GridPainter(
-                            startHour: startHour,
-                            endHour: endHour,
-                            pxPerMinute: pxPerMinute,
-                            columnWidth: colW,
-                          ),
+                            ...events.map((e) {
+                              final top = (e.startMinutes - startHour * 60) * pxPerMinute;
+
+                              final height = (e.endMinutes - e.startMinutes) * pxPerMinute;
+
+                              final left = e.dayIndex * colW;
+
+                              return Positioned(
+                                top: top.clamp(0, gridHeight - 1),
+                                left: left,
+                                width: colW,
+                                height: height,
+                                child: _EventCard(event: e),
+                              );
+                            }),
+                          ],
                         );
                       },
                     ),
@@ -183,4 +247,34 @@ class _GridPainter extends CustomPainter {
       old.endHour != endHour ||
       old.pxPerMinute != pxPerMinute ||
       old.columnWidth != columnWidth;
+}
+
+class _EventCard extends StatelessWidget {
+  const _EventCard({required this.event});
+
+  final ScheduleEvent event;
+
+  ///
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(3),
+      child: Container(
+        decoration: BoxDecoration(
+          color: event.color.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(6),
+          boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 2, offset: Offset(0, 1))],
+        ),
+
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+
+        child: Text(
+          event.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+        ),
+      ),
+    );
+  }
 }
