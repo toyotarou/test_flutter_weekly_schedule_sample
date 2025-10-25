@@ -44,7 +44,7 @@ class WeeklySchedulePage extends StatelessWidget {
         startMinutes: toMinutes(8, 0),
         endMinutes: toMinutes(10, 0),
         title: '病院',
-        memo: '小児科・予約A12',
+        memo: '小児科・予約A-12',
       ),
       ScheduleEvent(
         dayIndex: 0,
@@ -52,7 +52,6 @@ class WeeklySchedulePage extends StatelessWidget {
         endMinutes: toMinutes(11, 0),
         title: '買い物',
         color: const Color(0xFF26A69A),
-        memo: 'オムツ等',
       ),
 
       ScheduleEvent(dayIndex: 2, startMinutes: toMinutes(10, 0), endMinutes: toMinutes(12, 0), title: '通院'),
@@ -77,7 +76,6 @@ class WeeklySchedulePage extends StatelessWidget {
         endMinutes: toMinutes(16, 45),
         title: '検診',
         color: const Color(0xFF1E88E5),
-        memo: '保険証等',
       ),
     ];
 
@@ -97,27 +95,75 @@ class WeeklySchedulePage extends StatelessWidget {
 }
 
 void _openWeeklyDialog(BuildContext context, List<ScheduleEvent> events) {
-  const double timeGutterWidth = 56;
-  const double minColumnWidth = 90;
-  final double width = timeGutterWidth + minColumnWidth * 7;
+  const int startHour = 3;
+  const int endHour = 24;
+  const double pxPerMinute = 1.0;
+  const double gutter = 56;
+  const double minColW = 90;
+  final double gridHeight = (endHour - startHour) * 60 * pxPerMinute;
+
+  final ScrollController gutterVertical = ScrollController();
 
   showDialog(
     context: context,
     builder: (ctx) {
+      final bg = Theme.of(ctx).dialogTheme.backgroundColor ?? Theme.of(ctx).colorScheme.surface;
+
       return AlertDialog(
         title: const Text('週スケジュール'),
         content: SizedBox(
           width: double.maxFinite,
           height: 560,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SizedBox(
-              width: width,
-              child: WeeklyScheduleView(startHour: 3, endHour: 24, pxPerMinute: 1, events: events),
-            ),
+          child: Stack(
+            children: [
+              NotificationListener<ScrollNotification>(
+                onNotification: (n) {
+                  if (n.metrics.axis == Axis.vertical) {
+                    final target = n.metrics.pixels;
+                    if (gutterVertical.hasClients) {
+                      gutterVertical.jumpTo(target.clamp(0.0, gutterVertical.position.maxScrollExtent));
+                    }
+                  }
+                  return false;
+                },
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: gutter + 7 * minColW,
+                    child: WeeklyScheduleView(
+                      startHour: startHour,
+                      endHour: endHour,
+                      pxPerMinute: pxPerMinute,
+                      events: events,
+                    ),
+                  ),
+                ),
+              ),
+
+              Positioned(
+                left: 0,
+                top: 36,
+                bottom: 0,
+                width: gutter,
+                child: IgnorePointer(
+                  child: Container(
+                    color: bg,
+                    child: SingleChildScrollView(
+                      controller: gutterVertical,
+                      physics: const NeverScrollableScrollPhysics(),
+                      child: SizedBox(
+                        height: gridHeight,
+                        child: const _TimeLabels(startHour: startHour, endHour: endHour, pxPerMinute: pxPerMinute),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('閉じる'))],
+
+        actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('閉じる'))],
       );
     },
   );
@@ -169,10 +215,7 @@ class WeeklyScheduleView extends StatelessWidget {
               height: gridHeight,
               child: Row(
                 children: [
-                  SizedBox(
-                    width: timeGutterWidth,
-                    child: _TimeLabels(startHour: startHour, endHour: endHour, pxPerMinute: pxPerMinute),
-                  ),
+                  SizedBox(width: timeGutterWidth, child: const _TimeLabels(startHour: 3, endHour: 24, pxPerMinute: 1)),
 
                   Expanded(
                     child: LayoutBuilder(
@@ -218,7 +261,7 @@ class WeeklyScheduleView extends StatelessWidget {
                               );
                             }),
 
-                            _NowIndicatorLine(startHour: startHour, endHour: endHour, pxPerMinute: pxPerMinute),
+                            const _NowIndicatorLine(startHour: 3, endHour: 24, pxPerMinute: 1),
                           ],
                         );
                       },
@@ -245,7 +288,8 @@ class _WeekHeader extends StatelessWidget {
         final colW = constraints.maxWidth / 7;
         return Row(
           children: List.generate(7, (i) {
-            final isWeekend = (i == 0 || i == 6);
+            final isWeekend = i == 0 || i == 6;
+
             return Container(
               alignment: Alignment.center,
               width: colW,
@@ -279,11 +323,12 @@ void _showEventDialog(BuildContext context, ScheduleEvent e) {
             _DialogRow(icon: Icons.today, text: '曜日: ${_dayLabels[e.dayIndex]}'),
             const SizedBox(height: 8),
             _DialogRow(icon: Icons.access_time, text: '${_fmtHM(e.startMinutes)} 〜 ${_fmtHM(e.endMinutes)}'),
-            if (e.memo != null) ...[const SizedBox(height: 12), _DialogRow(icon: Icons.notes, text: e.memo!)],
+
+            if (e.memo != null) ...[const SizedBox(height: 8), _DialogRow(icon: Icons.notes, text: e.memo!)],
           ],
         ),
 
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('閉じる'))],
+        actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('閉じる'))],
       );
     },
   );
@@ -308,6 +353,14 @@ class _DialogRow extends StatelessWidget {
   }
 }
 
+class _PlacedEvent {
+  const _PlacedEvent({required this.event, required this.columnIndex, required this.columnCount});
+
+  final ScheduleEvent event;
+
+  final int columnIndex, columnCount;
+}
+
 List<_PlacedEvent> _placeWeekly(List<ScheduleEvent> events, double columnWidth) {
   final byDay = <int, List<ScheduleEvent>>{};
 
@@ -318,9 +371,9 @@ List<_PlacedEvent> _placeWeekly(List<ScheduleEvent> events, double columnWidth) 
   final placedAll = <_PlacedEvent>[];
 
   for (final entry in byDay.entries) {
-    final list = [...entry.value]..sort((a, b) => a.startMinutes.compareTo(b.startMinutes));
+    final dayEvents = [...entry.value]..sort((a, b) => a.startMinutes.compareTo(b.startMinutes));
 
-    placedAll.addAll(_placeForOneDay(list));
+    placedAll.addAll(_placeForOneDay(dayEvents));
   }
 
   return placedAll;
@@ -392,17 +445,9 @@ List<_PlacedEvent> _assignColumns(List<ScheduleEvent> cluster) {
     placed.add(_PlacedEvent(event: e, columnIndex: colIndex, columnCount: 0));
   }
 
-  final columnCount = placed.fold<int>(0, (m, p) => (p.columnIndex + 1 > m) ? p.columnIndex + 1 : m);
+  final cc = placed.fold<int>(0, (m, p) => (p.columnIndex + 1 > m) ? p.columnIndex + 1 : m);
 
-  return placed.map((p) => _PlacedEvent(event: p.event, columnIndex: p.columnIndex, columnCount: columnCount)).toList();
-}
-
-class _PlacedEvent {
-  const _PlacedEvent({required this.event, required this.columnIndex, required this.columnCount});
-
-  final ScheduleEvent event;
-  final int columnIndex;
-  final int columnCount;
+  return placed.map((p) => _PlacedEvent(event: p.event, columnIndex: p.columnIndex, columnCount: cc)).toList();
 }
 
 class _TimeLabels extends StatelessWidget {
@@ -480,7 +525,11 @@ class _GridPainter extends CustomPainter {
 
   ///
   @override
-  bool shouldRepaint(old) => true;
+  bool shouldRepaint(covariant _GridPainter old) =>
+      old.startHour != startHour ||
+      old.endHour != endHour ||
+      old.pxPerMinute != pxPerMinute ||
+      old.columnWidth != columnWidth;
 }
 
 class _EventCard extends StatelessWidget {
@@ -500,19 +549,7 @@ class _EventCard extends StatelessWidget {
         color: event.color.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(6),
         elevation: 1,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(6),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            child: Text(
-              event.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-            ),
-          ),
-        ),
+        child: InkWell(borderRadius: BorderRadius.circular(6), onTap: onTap, child: const SizedBox.expand()),
       ),
     );
   }
@@ -521,9 +558,7 @@ class _EventCard extends StatelessWidget {
 class _NowIndicatorLine extends StatelessWidget {
   const _NowIndicatorLine({required this.startHour, required this.endHour, required this.pxPerMinute});
 
-  final int startHour;
-
-  final int endHour;
+  final int startHour, endHour;
 
   final double pxPerMinute;
 
@@ -534,11 +569,11 @@ class _NowIndicatorLine extends StatelessWidget {
 
     final nowMinutes = now.hour * 60 + now.minute;
 
-    if (nowMinutes < startHour * 60 || nowMinutes > endHour * 60) {
-      return const SizedBox.shrink();
-    }
+    final s = startHour * 60, e = endHour * 60;
 
-    final top = (nowMinutes - startHour * 60) * pxPerMinute;
+    if (nowMinutes < s || nowMinutes > e) return const SizedBox.shrink();
+
+    final top = (nowMinutes - s) * pxPerMinute;
 
     return Positioned(
       top: top,
