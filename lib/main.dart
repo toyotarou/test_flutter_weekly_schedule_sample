@@ -84,7 +84,24 @@ class WeeklyScheduleView extends StatelessWidget {
                     child: _TimeLabels(startHour: startHour, endHour: endHour, pxPerMinute: pxPerMinute),
                   ),
 
-                  const Expanded(child: SizedBox.shrink()),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final colW = constraints.maxWidth / 7;
+
+                        return CustomPaint(
+                          size: Size(constraints.maxWidth, gridHeight),
+
+                          painter: _GridPainter(
+                            startHour: startHour,
+                            endHour: endHour,
+                            pxPerMinute: pxPerMinute,
+                            columnWidth: colW,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -117,4 +134,53 @@ class _TimeLabels extends StatelessWidget {
 
     return Stack(children: children);
   }
+}
+
+class _GridPainter extends CustomPainter {
+  _GridPainter({required this.startHour, required this.endHour, required this.pxPerMinute, required this.columnWidth});
+
+  final int startHour, endHour;
+  final double pxPerMinute, columnWidth;
+
+  ///
+  @override
+  void paint(Canvas canvas, Size size) {
+    final hour = Paint()
+      ..color = const Color(0x22000000)
+      ..strokeWidth = 1;
+
+    final major = Paint()
+      ..color = const Color(0x33000000)
+      ..strokeWidth = 1.2;
+
+    for (int h = startHour; h <= endHour; h++) {
+      final y = (h - startHour) * 60 * pxPerMinute;
+
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), (h % 3 == 0) ? major : hour);
+    }
+
+    final v = Paint()
+      ..color = const Color(0x22000000)
+      ..strokeWidth = 1;
+
+    for (int i = 0; i <= 7; i++) {
+      final x = i * columnWidth;
+
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), v);
+    }
+
+    final weekend = Paint()..color = const Color(0x113F51B5);
+
+    canvas.drawRect(Rect.fromLTWH(0, 0, columnWidth, size.height), weekend);
+
+    canvas.drawRect(Rect.fromLTWH(6 * columnWidth, 0, columnWidth, size.height), weekend);
+  }
+
+  ///
+  @override
+  bool shouldRepaint(covariant _GridPainter old) =>
+      old.startHour != startHour ||
+      old.endHour != endHour ||
+      old.pxPerMinute != pxPerMinute ||
+      old.columnWidth != columnWidth;
 }
