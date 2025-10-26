@@ -20,6 +20,22 @@ class ScheduleEvent {
   final String? memo;
 }
 
+class BadgeMarker {
+  const BadgeMarker({
+    required this.dayIndex,
+    required this.minutesOfDay,
+    this.icon = Icons.train,
+    this.color = const Color(0xFF1565C0),
+    this.tooltip,
+  });
+
+  final int dayIndex;
+  final int minutesOfDay;
+  final IconData icon;
+  final Color color;
+  final String? tooltip;
+}
+
 int toMinutes(int h, int m) => h * 60 + m;
 
 ///
@@ -79,6 +95,96 @@ class WeeklySchedulePage extends StatelessWidget {
       ),
     ];
 
+    final badges = <BadgeMarker>[
+      const BadgeMarker(
+        dayIndex: 0,
+        minutesOfDay: 16 * 60,
+        icon: Icons.train,
+        color: Color(0xFF1565C0),
+        tooltip: '電車に乗車（16:00）',
+      ),
+
+      const BadgeMarker(
+        dayIndex: 3,
+        minutesOfDay: 9 * 60 + 30,
+        icon: Icons.local_hospital,
+        color: Colors.red,
+        tooltip: '診察（09:30）',
+      ),
+
+      const BadgeMarker(
+        dayIndex: 0,
+        minutesOfDay: 20 * 60 + 30,
+        icon: Icons.restaurant,
+        color: Color(0xFF6D4C41),
+        tooltip: '夕食（20:30）',
+      ),
+
+      const BadgeMarker(
+        dayIndex: 1,
+        minutesOfDay: 7 * 60 + 15,
+        icon: Icons.directions_run,
+        color: Color(0xFF2E7D32),
+        tooltip: '朝ラン（07:15）',
+      ),
+
+      const BadgeMarker(
+        dayIndex: 2,
+        minutesOfDay: 12 * 60,
+        icon: Icons.lunch_dining,
+        color: Color(0xFF8D6E63),
+        tooltip: 'ランチ（12:00）',
+      ),
+
+      const BadgeMarker(
+        dayIndex: 4,
+        minutesOfDay: 18 * 60 + 45,
+        icon: Icons.work,
+        color: Color(0xFF455A64),
+        tooltip: '退社（18:45）',
+      ),
+
+      const BadgeMarker(
+        dayIndex: 5,
+        minutesOfDay: 6 * 60,
+        icon: Icons.alarm,
+        color: Color(0xFFF4511E),
+        tooltip: '早起き（06:00）',
+      ),
+
+      const BadgeMarker(
+        dayIndex: 6,
+        minutesOfDay: 14 * 60,
+        icon: Icons.directions_walk,
+        color: Color(0xFF5E35B1),
+        tooltip: 'お散歩（14:00）',
+      ),
+
+      const BadgeMarker(
+        dayIndex: 4,
+        minutesOfDay: 22 * 60 + 10,
+        icon: Icons.bedtime,
+        color: Color(0xFF283593),
+        tooltip: '就寝（22:10）',
+      ),
+
+      const BadgeMarker(
+        dayIndex: 2,
+        minutesOfDay: 8 * 60 + 5,
+        icon: Icons.flight_takeoff,
+        color: Color(0xFF0277BD),
+        tooltip: '出発（08:05）',
+      ),
+
+      const BadgeMarker(
+        dayIndex: 0,
+        minutesOfDay: 9 * 60,
+        icon: Icons.church,
+        color: Color(0xFF795548),
+        tooltip: '日曜礼拝（09:00）',
+      ),
+    ];
+
     return Scaffold(
       appBar: AppBar(title: const Text('Step9 ダイアログ表示')),
 
@@ -86,15 +192,14 @@ class WeeklySchedulePage extends StatelessWidget {
         child: ElevatedButton.icon(
           icon: const Icon(Icons.calendar_view_week),
           label: const Text('週スケジュールを開く'),
-
-          onPressed: () => _openWeeklyDialog(context, events),
+          onPressed: () => _openWeeklyDialog(context, events, badges),
         ),
       ),
     );
   }
 }
 
-void _openWeeklyDialog(BuildContext context, List<ScheduleEvent> events) {
+void _openWeeklyDialog(BuildContext context, List<ScheduleEvent> events, List<BadgeMarker> badges) {
   const int startHour = 3;
   const int endHour = 24;
   const double pxPerMinute = 1.0;
@@ -135,6 +240,7 @@ void _openWeeklyDialog(BuildContext context, List<ScheduleEvent> events) {
                       endHour: endHour,
                       pxPerMinute: pxPerMinute,
                       events: events,
+                      badges: badges,
                     ),
                   ),
                 ),
@@ -176,6 +282,7 @@ class WeeklyScheduleView extends StatelessWidget {
     required this.endHour,
     required this.pxPerMinute,
     this.events = const [],
+    this.badges = const [],
   });
 
   final int startHour;
@@ -185,6 +292,8 @@ class WeeklyScheduleView extends StatelessWidget {
   final double pxPerMinute;
 
   final List<ScheduleEvent> events;
+
+  final List<BadgeMarker> badges;
 
   ///
   @override
@@ -261,7 +370,31 @@ class WeeklyScheduleView extends StatelessWidget {
                               );
                             }),
 
-                            const _NowIndicatorLine(startHour: 3, endHour: 24, pxPerMinute: 1),
+                            _NowIndicatorLine(startHour: startHour, endHour: endHour, pxPerMinute: pxPerMinute),
+
+                            ...badges.map((b) {
+                              const double size = 20.0;
+                              final top = (b.minutesOfDay - startHour * 60) * pxPerMinute - size / 2;
+                              final left = b.dayIndex * colW + (colW - size) / 2;
+                              return Positioned(
+                                top: top.clamp(0, gridHeight - size),
+                                left: left,
+                                width: size,
+                                height: size,
+                                child: Tooltip(
+                                  message: b.tooltip ?? 'badge',
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                      boxShadow: const [BoxShadow(blurRadius: 3, color: Color(0x33000000))],
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Icon(b.icon, size: 14, color: b.color),
+                                  ),
+                                ),
+                              );
+                            }),
                           ],
                         );
                       },
@@ -549,7 +682,25 @@ class _EventCard extends StatelessWidget {
         color: event.color.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(6),
         elevation: 1,
-        child: InkWell(borderRadius: BorderRadius.circular(6), onTap: onTap, child: const SizedBox.expand()),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: onTap,
+          child: Stack(
+            children: [
+              Positioned(
+                left: 6,
+                top: 6,
+                right: 6,
+                child: Text(
+                  event.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
